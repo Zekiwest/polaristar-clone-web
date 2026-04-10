@@ -115,6 +115,17 @@ export function extractResources(html: string, baseUrl: string): ExtractedResour
     }
   });
 
+  // From <link rel="preload" as="image"> (Next.js imagesrcset)
+  $('link[rel="preload"][as="image"]').each((_, el) => {
+    const imagesrcset = $(el).attr("imagesrcset");
+    if (imagesrcset) {
+      imagesrcset.split(",").forEach((item) => {
+        const url = item.trim().split(/\s+/)[0];
+        if (url) addUrl(url, images);
+      });
+    }
+  });
+
   // From <picture> elements
   $("picture source").each((_, el) => {
     const srcset = $(el).attr("srcset");

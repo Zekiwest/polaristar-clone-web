@@ -93,6 +93,17 @@ export function rewriteHtml(
     }
   });
 
+  // Rewrite preload image link imagesrcset (Next.js specific)
+  $('link[rel="preload"][as="image"]').each((_, el) => {
+    const imagesrcset = $(el).attr("imagesrcset");
+    if (imagesrcset) {
+      const newImagesrcset = rewriteSrcset(imagesrcset, baseUrl, urlMap);
+      if (newImagesrcset !== imagesrcset) {
+        $(el).attr("imagesrcset", newImagesrcset);
+      }
+    }
+  });
+
   // Rewrite picture source srcset
   $("picture source").each((_, el) => {
     const srcset = $(el).attr("srcset");
