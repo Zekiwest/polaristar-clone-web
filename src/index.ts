@@ -102,22 +102,49 @@ export async function collectResources(
 
   let html: string;
   let finalUrl: string;
+  let browserModeUsed = false;
 
-  if (useBrowser) {
-    // Use browser mode for JavaScript-heavy sites
-    // First try TLS bypass (faster), then fallback to browser if blocked
-    log("Trying TLS bypass first...");
-    try {
-      const tlsResult = await fetchWithTlsBypass(url, {
-        timeout,
-        headers,
-        userAgent,
-      });
-      html = tlsResult.html;
-      finalUrl = tlsResult.url;
+  // Step 1: Try normal HTTP request first
+  log("Trying normal HTTP request...");
+  try {
+    const pageResult = await fetchUrl(url, {
+      headers,
+      timeout,
+      userAgent,
+      referer: url,
+    });
 
-      if (isCloudflareChallenge(html)) {
-        log("TLS bypass blocked by Cloudflare, switching to browser mode...");
+    html = pageResult.body;
+    finalUrl = pageResult.url;
+
+    // Check if we got blocked by Cloudflare or similar
+    if (pageResult.status === 403 || pageResult.status === 503 || isCloudflareChallenge(html)) {
+      log(`Blocked (HTTP ${pageResult.status}), trying TLS bypass...`);
+
+      // Step 2: Try TLS bypass (faster than full browser)
+      try {
+        const tlsResult = await fetchWithTlsBypass(url, {
+          timeout,
+          headers,
+          userAgent,
+        });
+        html = tlsResult.html;
+        finalUrl = tlsResult.url;
+
+        if (isCloudflareChallenge(html)) {
+          log("TLS bypass blocked, switching to browser mode...");
+          const browserResult = await fetchWithBrowser(url, {
+            timeout: Math.max(timeout, 60000),
+            waitForSelector,
+            headers,
+            userAgent,
+          });
+          html = browserResult.html;
+          finalUrl = browserResult.url;
+          browserModeUsed = true;
+        }
+      } catch (tlsError) {
+        log("TLS bypass failed, switching to browser mode...");
         const browserResult = await fetchWithBrowser(url, {
           timeout: Math.max(timeout, 60000),
           waitForSelector,
@@ -126,39 +153,37 @@ export async function collectResources(
         });
         html = browserResult.html;
         finalUrl = browserResult.url;
+        browserModeUsed = true;
       }
-    } catch (tlsError) {
-      log("TLS bypass failed, switching to browser mode...");
-      const browserResult = await fetchWithBrowser(url, {
-        timeout: Math.max(timeout, 60000),
-        waitForSelector,
-        headers,
-        userAgent,
-      });
-      html = browserResult.html;
-      finalUrl = browserResult.url;
-    }
-    log(`Fetched: ${finalUrl}`);
-  } else {
-    // Use regular HTTP fetch
-    const pageResult = await fetchUrl(url, {
-      headers,
-      timeout,
-      userAgent,
-      referer: url,
-    });
-
-    if (pageResult.status !== 200) {
+    } else if (pageResult.status !== 200) {
       throw new Error(`Failed to fetch page: HTTP ${pageResult.status}`);
     }
 
-    html = pageResult.body;
-    finalUrl = pageResult.url;
     log(`Fetched: ${finalUrl}`);
-  }
+  } catch (fetchError) {
+    // Normal request failed, try browser mode
+    log(`Normal request failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
 
-  // Flag to indicate if browser mode was used (for resource downloads)
-  const browserModeUsed = useBrowser;
+    if (useBrowser) {
+      log("Trying browser mode (--browser flag)...");
+      try {
+        const browserResult = await fetchWithBrowser(url, {
+          timeout: Math.max(timeout, 60000),
+          waitForSelector,
+          headers,
+          userAgent,
+        });
+        html = browserResult.html;
+        finalUrl = browserResult.url;
+        browserModeUsed = true;
+        log(`Fetched: ${finalUrl}`);
+      } catch (browserError) {
+        throw new Error(`Failed to fetch page: ${browserError instanceof Error ? browserError.message : String(browserError)}`);
+      }
+    } else {
+      throw fetchError;
+    }
+  }
 
   // Extract resources from HTML
   const extracted = extractResources(html, finalUrl);

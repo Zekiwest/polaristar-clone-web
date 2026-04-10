@@ -13,7 +13,7 @@ const program = new Command();
 
 program
   .name("resource-collector")
-  .description("Collect CSS, JS, and images from a webpage")
+  .description("Collect CSS, JS, and images from a webpage. Automatically detects and bypasses Cloudflare when needed.")
   .version("1.0.0")
   .argument("<url>", "URL to collect resources from")
   .option("-o, --output <dir>", "Output directory", "./output")
@@ -24,7 +24,7 @@ program
   .option("-t, --timeout <ms>", "Request timeout in milliseconds", "30000")
   .option("-H, --header <header>", "Custom header (can be used multiple times)", (value, prev: string[]) => [...prev, value], [] as string[])
   .option("--user-agent <ua>", "Custom user agent")
-  .option("--browser", "Use browser mode for JavaScript-heavy sites (handles Cloudflare)")
+  .option("--browser", "Force browser mode (auto-detected by default)")
   .option("--wait-for <selector>", "Wait for selector before extracting (browser mode)")
   .action(async (url: string, options) => {
     console.log("╔═══════════════════════════════════════════╗");
@@ -46,9 +46,7 @@ program
 
     console.log(`URL: ${url}`);
     console.log(`Output: ${outputDir}`);
-    if (options.browser) {
-      console.log(`Mode: Browser (Cloudflare support)`);
-    }
+    console.log(`Mode: Auto-detect (switches to browser if blocked)`);
     console.log();
 
     try {
