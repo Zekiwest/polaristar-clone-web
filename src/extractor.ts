@@ -45,11 +45,52 @@ export function extractResources(html: string, baseUrl: string): ExtractedResour
 
   // Helper to add resolved URL
   const addUrl = (url: string, set: Set<string>) => {
+    // Handle Next.js image optimizer URLs: /_next/image?url=<encoded_url>&w=...
+    const nextImageUrl = extractNextJsImageUrl(url, baseUrl);
+    if (nextImageUrl) {
+      set.add(nextImageUrl);
+      return;
+    }
+
     const resolved = resolveUrl(url.trim(), baseUrl, baseHref);
     if (resolved && isValidUrl(resolved)) {
       set.add(resolved);
     }
   };
+
+  /**
+   * Extract real URL from Next.js image optimizer URL
+   * Format: /_next/image?url=<encoded_url>&w=<width>&q=<quality>
+   */
+  function extractNextJsImageUrl(url: string, base: string): string | null {
+    try {
+      // Check if it's a Next.js image URL
+      if (!url.includes("/_next/image") && !url.includes("%2F_next%2Fimage")) {
+        return null;
+      }
+
+      // Resolve the URL first
+      let fullUrl = url;
+      if (!url.startsWith("http")) {
+        fullUrl = new URL(url, base).href;
+      }
+
+      // Parse the URL and extract the 'url' parameter
+      const urlObj = new URL(fullUrl);
+      const encodedUrl = urlObj.searchParams.get("url");
+
+      if (encodedUrl) {
+        // Decode the URL
+        const decodedUrl = decodeURIComponent(encodedUrl);
+        if (isValidUrl(decodedUrl)) {
+          return decodedUrl;
+        }
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return null;
+  }
 
   // =====================
   // Extract Images
@@ -175,6 +216,17 @@ export function extractResources(html: string, baseUrl: string): ExtractedResour
   $('link[rel="preload"][as="font"]').each((_, el) => {
     const href = $(el).attr("href");
     if (href) {
+      const resolved = resolveUrl(href.trim(), baseUrl, baseHref);
+      if (resolved && isValidUrl(resolved)) {
+        fonts.add(resolved);
+      }
+    }
+  });
+
+  // Also extract Next.js static media fonts from link preload
+  $('link[rel="preload"][href*="/_next/static/media/"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href && href.includes("/_next/static/media/")) {
       const resolved = resolveUrl(href.trim(), baseUrl, baseHref);
       if (resolved && isValidUrl(resolved)) {
         fonts.add(resolved);

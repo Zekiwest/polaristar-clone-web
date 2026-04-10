@@ -239,6 +239,21 @@ function findLocalPath(
     return null;
   }
 
+  // Handle Next.js image optimizer URLs
+  const nextJsRealUrl = extractNextJsImageUrl(url, baseUrl);
+  if (nextJsRealUrl) {
+    // Extract filename from the real URL and match
+    const filename = getFilenameFromUrl(nextJsRealUrl);
+    if (filename) {
+      for (const [_, info] of urlMap) {
+        if (info.filename === filename) {
+          return `${info.type}/${info.filename}`;
+        }
+      }
+    }
+    return null;
+  }
+
   // Resolve URL
   let resolvedUrl = url;
   try {
@@ -274,6 +289,37 @@ function findLocalPath(
     }
   }
 
+  return null;
+}
+
+/**
+ * Extract real URL from Next.js image optimizer URL
+ * Format: /_next/image?url=<encoded_url>&w=<width>&q=<quality>
+ */
+function extractNextJsImageUrl(url: string, base: string): string | null {
+  try {
+    // Check if it's a Next.js image URL
+    if (!url.includes("/_next/image") && !url.includes("%2F_next%2Fimage")) {
+      return null;
+    }
+
+    // Resolve the URL first
+    let fullUrl = url;
+    if (!url.startsWith("http")) {
+      fullUrl = new URL(url, base).href;
+    }
+
+    // Parse the URL and extract the 'url' parameter
+    const urlObj = new URL(fullUrl);
+    const encodedUrl = urlObj.searchParams.get("url");
+
+    if (encodedUrl) {
+      // Decode the URL
+      return decodeURIComponent(encodedUrl);
+    }
+  } catch {
+    // Ignore parsing errors
+  }
   return null;
 }
 
@@ -337,13 +383,27 @@ function rewriteSrcset(
       const url = parts[0];
       const descriptor = parts.slice(1).join(" ");
 
-      const localPath = findLocalPath(url, baseUrl, urlMap, "images");
+      // Decode HTML entities (like &amp; to &) for Next.js image URLs
+      const decodedUrl = decodeHtmlEntities(url);
+      const localPath = findLocalPath(decodedUrl, baseUrl, urlMap, "images");
       if (localPath) {
         return descriptor ? `${localPath} ${descriptor}` : localPath;
       }
       return item;
     })
     .join(", ");
+}
+
+/**
+ * Decode HTML entities in URLs (e.g., &amp; -> &)
+ */
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 /**

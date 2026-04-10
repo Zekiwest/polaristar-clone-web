@@ -182,6 +182,40 @@ export async function collectResources(
   const downloadedCssPaths: string[] = [];
   const cssUrlToPath: Map<string, string> = new Map(); // Map CSS URL to local path
 
+  // Global deduplication: track file hashes to prevent duplicate downloads
+  const downloadedFileHashes = new Map<string, string>(); // hash -> filename
+  const crypto = await import('crypto');
+
+  /**
+   * Check if file content is already downloaded (by hash)
+   * Returns existing filename if duplicate, null if new
+   */
+  const checkDuplicateByHash = (buffer: Buffer): string | null => {
+    const hash = crypto.createHash('md5').update(buffer).digest('hex');
+    return downloadedFileHashes.get(hash) || null;
+  };
+
+  /**
+   * Register a newly downloaded file by its hash
+   */
+  const registerFileHash = (buffer: Buffer, filename: string): void => {
+    const hash = crypto.createHash('md5').update(buffer).digest('hex');
+    downloadedFileHashes.set(hash, filename);
+  };
+
+  // Helper to check if URL needs browser mode (different origin or Cloudflare)
+  const needsBrowserMode = (resourceUrl: string): boolean => {
+    if (!browserModeUsed) return false;
+    try {
+      const resourceOrigin = new URL(resourceUrl).origin;
+      const pageOrigin = new URL(finalUrl).origin;
+      // Same origin resources don't need browser mode
+      return resourceOrigin !== pageOrigin;
+    } catch {
+      return browserModeUsed;
+    }
+  };
+
   // Helper to download files with concurrency (supports browser mode)
   const downloadWithConcurrency = async (
     urls: string[],
@@ -203,7 +237,7 @@ export async function collectResources(
           const filename = getSafeFilename(currentUrl, outputDir);
           const outputPath = path.join(outputDir, filename);
 
-          // Skip if already exists
+          // Skip if file already exists on disk
           if (fs.existsSync(outputPath)) {
             // Still track the URL for rewriting
             if (downloadedSet) {
@@ -212,8 +246,9 @@ export async function collectResources(
             continue;
           }
 
-          // Use browser fetch if browser mode was used (for Cloudflare bypass)
-          const result = browserModeUsed
+          // Use browser fetch only for cross-origin resources when browser mode is enabled
+          const useBrowserForThisRequest = needsBrowserMode(currentUrl);
+          const result = useBrowserForThisRequest
             ? await fetchBinaryWithBrowser(currentUrl, { timeout, headers, userAgent })
             : await fetchBinary(currentUrl, {
                 headers,
@@ -223,7 +258,18 @@ export async function collectResources(
               });
 
           if (result.status === 200 && result.buffer.length > 0) {
+            // Check for duplicates by content hash
+            const existingFile = checkDuplicateByHash(result.buffer);
+            if (existingFile) {
+              log(`Skipped duplicate [${label}]: ${filename} (same as ${existingFile})`);
+              if (downloadedSet) {
+                downloadedSet.add(currentUrl);
+              }
+              continue;
+            }
+
             fs.writeFileSync(outputPath, result.buffer);
+            registerFileHash(result.buffer, filename);
             stats.totalSize += result.buffer.length;
             downloaded++;
             if (downloadedSet) {
@@ -235,9 +281,11 @@ export async function collectResources(
             log(`Downloaded [${label}]: ${filename}`);
           } else {
             stats.failed++;
+            log(`Failed [${label}]: ${filename} (status: ${result.status}, size: ${result.buffer.length})`);
           }
         } catch (error) {
           stats.failed++;
+          log(`Error [${label}]: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     };
