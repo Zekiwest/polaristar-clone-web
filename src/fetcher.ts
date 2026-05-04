@@ -1,6 +1,12 @@
 /**
  * Fetcher - Handles HTTP requests with proper headers
  * Derived from Firecrawl's fetch engine
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: HTTP 请求处理，使用 undici 作为客户端
+ * 依赖关系: undici (外部)
+ * 变更同步: 修改请求策略时更新 src/_dir.md 模块清单
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 import * as undici from "undici";

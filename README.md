@@ -1,85 +1,149 @@
-# Polaristar Clone Web
+# Polaristar CLI
 
-A powerful website resource collector that extracts and reconstructs web pages for offline viewing. Capable of downloading HTML, CSS, JavaScript, images, and fonts while rewriting all resource paths for local browsing.
+Professional website resource collector with Cloudflare bypass, site crawling, and offline reconstruction.
 
 ## Features
 
 - **Complete Resource Extraction**: Downloads images, CSS, JS, and fonts from any webpage
 - **Path Rewriting**: Automatically converts all resource URLs to local paths for offline viewing
 - **Cloudflare Bypass**: Uses `puppeteer-real-browser` to bypass Cloudflare Turnstile protection
-- **Browser Mode**: Supports JavaScript-heavy sites with dynamic content rendering
-- **TLS Fingerprint Spoofing**: Fallback mechanism using `got-scraping` for anti-bot measures
-- **Concurrent Downloads**: Configurable concurrency for faster resource collection
-- **CSS Resource Extraction**: Extracts images and fonts referenced within CSS files
+- **Site Crawling**: Multi-page crawling with depth and page limit control
+- **Website Analysis**: Extract navigation links, routes, and site structure
+- **Link Fixing**: Repair broken links, CDN URLs, and font references
+- **Local Preview**: Built-in HTTP server for offline preview
+- **Template System**: Extract and customize site templates
 
 ## Installation
 
 ```bash
-npm install
-npm run build
+npm install polaristar-cli
 ```
 
-## Usage
-
-### CLI
+Or use directly with npx:
 
 ```bash
-node dist/cli.js <url> [options]
+npx polaristar <url> -o ./output
 ```
 
-#### Options
+## Commands
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-o, --output <dir>` | Output directory | `./output` |
-| `--no-images` | Skip downloading images | false |
-| `--no-css` | Skip downloading CSS | false |
-| `--no-js` | Skip downloading JavaScript | false |
-| `-c, --concurrency <number>` | Concurrent downloads | 5 |
-| `-t, --timeout <ms>` | Request timeout | 30000 |
-| `-H, --header <header>` | Custom headers | - |
-| `--user-agent <ua>` | Custom user agent | - |
-| `--browser` | Use browser mode (Cloudflare support) | false |
-| `--wait-for <selector>` | Wait for selector (browser mode) | - |
+### collect (default)
 
-### Examples
+Collect resources from a single webpage:
 
 ```bash
-# Basic extraction
-node dist/cli.js https://example.com -o ./output
-
-# Cloudflare-protected site
-node dist/cli.js https://protected-site.com --browser -o ./output
-
-# High concurrency
-node dist/cli.js https://example.com -c 10 -o ./output
+polaristar <url> -o ./output
 ```
 
-### API
+Options:
+- `-o, --output <dir>` - Output directory
+- `--no-images` - Skip downloading images
+- `--no-css` - Skip downloading CSS
+- `--no-js` - Skip downloading JavaScript
+- `-c, --concurrency <number>` - Concurrent downloads (default: 5)
+- `-t, --timeout <ms>` - Request timeout (default: 30000)
+- `-H, --header <header>` - Custom headers
+- `--browser` - Force browser mode
+- `--wait-for <selector>` - Wait for selector before extracting
+- `-s, --serve [port]` - Start server after collecting
 
-```typescript
-import { collectResources } from 'polaristar-clone-web';
+### crawl
 
-const result = await collectResources('https://example.com', {
-  outputDir: './output',
-  downloadImages: true,
-  downloadCss: true,
-  downloadJs: true,
-  useBrowser: false,
-  concurrency: 5,
-  timeout: 30000,
-});
+Crawl and download entire website:
 
-console.log(result.stats);
+```bash
+polaristar crawl <url> -o ./output -d 2 -m 50
+```
+
+Options:
+- `-o, --output <dir>` - Output directory
+- `-d, --depth <number>` - Maximum crawl depth (default: 2)
+- `-m, --max-pages <number>` - Maximum pages (default: 50)
+- `--include <pattern>` - Include pattern (regex)
+- `--exclude <pattern>` - Exclude pattern (regex)
+- `--no-browser` - Disable browser mode
+- `--no-assets` - Skip asset downloads
+- `-t, --timeout <ms>` - Request timeout
+
+### analyze
+
+Analyze website structure:
+
+```bash
+polaristar analyze <url>
+polaristar analyze ./output  # Analyze local files
+```
+
+Options:
+- `--no-browser` - Disable browser mode
+- `--nav` - Show navigation only
+- `--routes` - Show routes only
+- `--collections` - Show collections only
+- `--products` - Show products only
+- `-o, --output <file>` - Save to JSON file
+
+### fix
+
+Fix broken links in downloaded files:
+
+```bash
+polaristar fix ./output --base-url https://example.com
+```
+
+Options:
+- `--links` - Fix internal links
+- `--cdn` - Fix CDN URLs
+- `--fonts` - Fix font URLs
+- `--base-url <url>` - Original site URL
+- `--external <domain>` - External domains to keep
+
+### serve
+
+Preview downloaded site locally:
+
+```bash
+polaristar serve ./output -p 3000
+```
+
+Options:
+- `-p, --port <number>` - Port number (default: 3000)
+
+### template
+
+Template extraction and customization:
+
+```bash
+polaristar template extract ./output
+polaristar template apply ./output config.json
+polaristar template export ./output --dest ./export
+```
+
+## Examples
+
+```bash
+# Single page with Cloudflare bypass
+polaristar https://protected-site.com --browser -o ./output
+
+# Crawl entire site (depth 3, max 100 pages)
+polaristar crawl https://example.com -d 3 -m 100 -o ./output
+
+# Analyze site structure
+polaristar analyze https://shop.example.com -o analysis.json
+
+# Fix links after download
+polaristar fix ./output --base-url https://example.com
+
+# Preview locally
+polaristar serve ./output -p 8080
 ```
 
 ## Output Structure
 
 ```
 output/
-├── index.html      # Rewritten HTML with local paths
-├── images/         # All downloaded images
-├── css/            # CSS files (paths rewritten)
+├── index.html      # Rewritten HTML
+├── images/         # Downloaded images
+├── css/            # CSS files
 ├── js/             # JavaScript files
 ├── fonts/          # Font files
 ```
@@ -87,11 +151,10 @@ output/
 ## Tech Stack
 
 - **puppeteer-real-browser** - Cloudflare Turnstile bypass
-- **cheerio** - HTML parsing and manipulation
-- **undici** - High-performance HTTP client
-- **got-scraping** - TLS fingerprint spoofing (fallback)
+- **cheerio** - HTML parsing
+- **undici** - HTTP client
 - **commander** - CLI framework
 
 ## License
 
-MIT
+Proprietary - All rights reserved.

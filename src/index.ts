@@ -1,5 +1,11 @@
 /**
  * Resource Collector - Main module for collecting website resources
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: 网站资源收集核心，协调 fetcher → extractor → rewriter 流程
+ * 依赖关系: fetcher.ts, browser-fetcher.ts, cloudflare-bypass.ts, extractor.ts, rewriter.ts, url-utils.ts
+ * 变更同步: 修改 fetch 流程时更新 src/_dir.md 和 PROJECT_INDEX.md 数据流图
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 import * as fs from "fs";
@@ -228,17 +234,9 @@ export async function collectResources(
     downloadedFileHashes.set(hash, filename);
   };
 
-  // Helper to check if URL needs browser mode (different origin or Cloudflare)
+  // Helper to check if URL needs browser mode
   const needsBrowserMode = (resourceUrl: string): boolean => {
-    if (!browserModeUsed) return false;
-    try {
-      const resourceOrigin = new URL(resourceUrl).origin;
-      const pageOrigin = new URL(finalUrl).origin;
-      // Same origin resources don't need browser mode
-      return resourceOrigin !== pageOrigin;
-    } catch {
-      return browserModeUsed;
-    }
+    return browserModeUsed;
   };
 
   // Helper to download files with concurrency (supports browser mode)
@@ -329,17 +327,29 @@ export async function collectResources(
   if (downloadCss && extracted.css.length > 0) {
     log("Downloading CSS files...");
 
-    // Download CSS files and track URL to path mapping
-    for (const cssUrl of extracted.css) {
-      try {
-        const filename = getSafeFilename(cssUrl, dirs.css);
-        const outputPath = path.join(dirs.css, filename);
+    // Download CSS files concurrently
+    const cssQueue = [...extracted.css];
+    const cssActive = new Set<Promise<void>>();
 
-        if (!fs.existsSync(outputPath)) {
-          // Use browser fetch if browser mode was used
+    const processCss = async () => {
+      while (cssQueue.length > 0) {
+        const currentCssUrl = cssQueue.shift();
+        if (!currentCssUrl) break;
+
+        try {
+          const filename = getSafeFilename(currentCssUrl, dirs.css);
+          const outputPath = path.join(dirs.css, filename);
+
+          if (fs.existsSync(outputPath)) {
+            downloadedCss.add(currentCssUrl);
+            downloadedCssPaths.push(outputPath);
+            cssUrlToPath.set(currentCssUrl, outputPath);
+            continue;
+          }
+
           const result = browserModeUsed
-            ? await fetchBinaryWithBrowser(cssUrl, { timeout, headers, userAgent })
-            : await fetchBinary(cssUrl, {
+            ? await fetchBinaryWithBrowser(currentCssUrl, { timeout, headers, userAgent })
+            : await fetchBinary(currentCssUrl, {
                 headers,
                 timeout,
                 userAgent,
@@ -347,23 +357,38 @@ export async function collectResources(
               });
 
           if (result.status === 200 && result.buffer.length > 0) {
+            // Check for duplicates by content hash
+            const existingFile = checkDuplicateByHash(result.buffer);
+            if (existingFile) {
+              log(`Skipped duplicate [CSS]: ${filename} (same as ${existingFile})`);
+              downloadedCss.add(currentCssUrl);
+              continue;
+            }
+
             fs.writeFileSync(outputPath, result.buffer);
+            registerFileHash(result.buffer, filename);
             stats.totalSize += result.buffer.length;
             stats.cssDownloaded++;
             log(`Downloaded [CSS]: ${filename}`);
+            downloadedCss.add(currentCssUrl);
+            downloadedCssPaths.push(outputPath);
+            cssUrlToPath.set(currentCssUrl, outputPath);
           } else {
             stats.failed++;
-            continue;
+            log(`Failed [CSS]: ${filename} (status: ${result.status})`);
           }
+        } catch (error) {
+          stats.failed++;
+          log(`Error [CSS]: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        downloadedCss.add(cssUrl);
-        downloadedCssPaths.push(outputPath);
-        cssUrlToPath.set(cssUrl, outputPath);
-      } catch (error) {
-        stats.failed++;
       }
+    };
+
+    const cssWorkers = [];
+    for (let i = 0; i < Math.min(concurrency, extracted.css.length); i++) {
+      cssWorkers.push(processCss());
     }
+    await Promise.all(cssWorkers);
 
     // Also extract images and fonts from downloaded CSS
     for (const [cssUrl, cssPath] of cssUrlToPath) {
@@ -453,7 +478,7 @@ export async function collectResources(
     try {
       if (fs.existsSync(cssPath)) {
         const cssContent = fs.readFileSync(cssPath, "utf-8");
-        const rewrittenCss = rewriteCss(cssContent, cssUrl, downloadedImages, downloadedFonts);
+        const rewrittenCss = rewriteCss(cssContent, cssUrl, downloadedImages, downloadedFonts, cssPath);
         fs.writeFileSync(cssPath, rewrittenCss);
       }
     } catch (error) {
@@ -468,7 +493,7 @@ export async function collectResources(
     if (fs.existsSync(cssPath) && !cssUrlToPath.has(cssUrl)) {
       try {
         const cssContent = fs.readFileSync(cssPath, "utf-8");
-        const rewrittenCss = rewriteCss(cssContent, cssUrl, downloadedImages, downloadedFonts);
+        const rewrittenCss = rewriteCss(cssContent, cssUrl, downloadedImages, downloadedFonts, cssPath);
         fs.writeFileSync(cssPath, rewrittenCss);
       } catch (error) {
         // Ignore CSS rewriting errors

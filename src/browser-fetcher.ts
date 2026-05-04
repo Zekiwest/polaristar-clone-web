@@ -1,6 +1,12 @@
 /**
  * Real Browser Fetcher - Uses puppeteer-real-browser for Cloudflare bypass
  * Handles Cloudflare Turnstile and other bot protections
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: 使用真实浏览器绕过 Cloudflare 保护
+ * 依赖关系: puppeteer-real-browser (外部)
+ * 变更同步: 修改绕过策略时更新 docs/CLOUDFLARE_BYPASS.md
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 import type { Browser, Page } from "rebrowser-puppeteer-core";
@@ -124,11 +130,7 @@ export async function fetchWithBrowser(
     await page.waitForSelector(waitForSelector, { timeout });
   }
 
-  // Wait for Cloudflare challenge to be solved (if present)
-  // The puppeteer-real-browser with turnstile should handle this
-  await new Promise(resolve => setTimeout(resolve, 10000));
-
-  // Check if still on challenge page and wait more
+  // Poll for Cloudflare challenge completion
   let attempts = 0;
   const maxAttempts = 15;
   while (attempts < maxAttempts) {

@@ -1,5 +1,11 @@
 /**
  * Path Rewriter - Rewrites resource paths in HTML and CSS for local viewing
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: 将 HTML/CSS 中的 URL 重写为本地路径
+ * 依赖关系: cheerio, url-utils.ts
+ * 变更同步: 修改重写逻辑时更新 src/_dir.md 模块清单
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 import * as cheerio from "cheerio";
@@ -36,6 +42,28 @@ export function rewriteHtml(
     const href = $(el).attr("href");
     if (href) {
       const localPath = findLocalPath(href, baseUrl, urlMap, "css");
+      if (localPath) {
+        $(el).attr("href", localPath);
+      }
+    }
+  });
+
+  // Rewrite preload CSS links (Next.js uses <link rel="preload" as="style">)
+  $('link[rel="preload"][as="style"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) {
+      const localPath = findLocalPath(href, baseUrl, urlMap, "css");
+      if (localPath) {
+        $(el).attr("href", localPath);
+      }
+    }
+  });
+
+  // Rewrite preload JS links (Next.js uses <link rel="modulepreload">)
+  $('link[rel="modulepreload"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) {
+      const localPath = findLocalPath(href, baseUrl, urlMap, "js");
       if (localPath) {
         $(el).attr("href", localPath);
       }
@@ -151,15 +179,20 @@ export function rewriteHtml(
 
 /**
  * Rewrite CSS content to use local resource paths
+ * @param cssFilePath - Path to the CSS file (for generating correct relative paths)
  */
 export function rewriteCss(
   cssContent: string,
   baseUrl: string,
   downloadedImages: Set<string>,
-  downloadedFonts: Set<string> = new Set()
+  downloadedFonts: Set<string> = new Set(),
+  cssFilePath?: string
 ): string {
   const urlMap = buildUrlMap(downloadedImages, new Set(), new Set());
   const fontMap = buildUrlMap(downloadedFonts, new Set(), new Set(), "fonts");
+
+  // Determine relative prefix based on CSS file location
+  const relPrefix = cssFilePath ? "../" : "";
 
   // Match url() patterns
   return cssContent.replace(/url\(['"]?([^'")\s]+)['"]?\)/gi, (match, url) => {
@@ -181,13 +214,13 @@ export function rewriteCss(
     // Check if it's a font
     const fontPath = findLocalPath(resolvedUrl, baseUrl, fontMap, "fonts");
     if (fontPath) {
-      return `url(${fontPath})`;
+      return `url(${relPrefix}${fontPath})`;
     }
 
     // Check if it's an image
     const localPath = findLocalPath(resolvedUrl, baseUrl, urlMap, "images");
     if (localPath) {
-      return `url(${localPath})`;
+      return `url(${relPrefix}${localPath})`;
     }
 
     return match;
@@ -400,6 +433,16 @@ function rewriteSrcset(
       if (localPath) {
         return descriptor ? `${localPath} ${descriptor}` : localPath;
       }
+
+      // Fallback: strip Next.js query-like params (&w=&q=) from path and try again
+      const cleanedUrl = decodedUrl.replace(/[&?]w=\d+&?q=\d*$/g, "").replace(/[&?]w=\d+/g, "");
+      if (cleanedUrl !== decodedUrl) {
+        const cleanedPath = findLocalPath(cleanedUrl, baseUrl, urlMap, "images");
+        if (cleanedPath) {
+          return descriptor ? `${cleanedPath} ${descriptor}` : cleanedPath;
+        }
+      }
+
       return item;
     })
     .join(", ");

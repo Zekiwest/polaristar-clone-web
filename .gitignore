@@ -7,6 +7,9 @@ dist/
 # Test outputs
 output/
 ugly_cash_output/
+baggu_output/
+baggu_template/
+template-export/
 
 # IDE
 .vscode/

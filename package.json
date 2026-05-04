@@ -1,28 +1,39 @@
 {
-  "name": "polaristar-clone-web",
+  "name": "polaristar-cli",
   "version": "1.0.0",
-  "description": "Website resource collector - extracts and reconstructs web pages for offline viewing with Cloudflare bypass support",
+  "description": "Polaristar CLI - Professional website resource collector with Cloudflare bypass, site crawling, and offline reconstruction",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "resource-collector": "./dist/cli.js"
+    "polaristar": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/cli.js",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "web-scraper",
     "resource-extractor",
-    "website-clone"
+    "website-clone",
+    "cloudflare-bypass",
+    "offline-browser",
+    "site-crawler"
   ],
-  "license": "MIT",
+  "author": "Polaristar",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "cheerio": "^1.0.0",
     "commander": "^12.0.0",
     "got-scraping": "^4.2.1",
-    "playwright-core": "^1.58.2",
     "puppeteer-real-browser": "^1.4.4",
     "undici": "^6.21.0"
   },

@@ -1,6 +1,12 @@
 /**
  * URL Utilities - Handles URL resolution, normalization
  * Derived from Firecrawl's extractLinks/extractImages modules
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: URL 解析、规范化、验证工具函数
+ * 依赖关系: 无 (纯工具模块)
+ * 变更同步: 新增函数时更新 src/_dir.md 模块清单
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 /**

@@ -1,5 +1,13 @@
 # Cloudflare Bypass Implementation Guide
 
+<!--
+─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+文件作用: 详细说明 Cloudflare 绕过的技术原理和实现
+依赖关系: browser-fetcher.ts, cloudflare-bypass.ts (代码实现)
+变更同步: 修改绕过策略时同步更新代码文件的 L3 注释
+──────────────────────────────────────────────────────────────────────────
+-->
+
 ## Overview
 
 This document details how the resource-collector tool successfully bypasses Cloudflare protection to scrape protected websites like `appstorrent.ru`.

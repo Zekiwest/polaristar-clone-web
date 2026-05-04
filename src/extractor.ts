@@ -1,6 +1,12 @@
 /**
  * Resource Extractor - Extracts CSS, JS, images from HTML
  * Derived from Firecrawl's extractImages/extractLinks modules
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: 从 HTML 提取图片、CSS、JS、链接、字体 URL
+ * 依赖关系: cheerio, url-utils.ts
+ * 变更同步: 新增提取规则时更新 src/_dir.md 模块清单输入/输出表
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 import * as cheerio from "cheerio";

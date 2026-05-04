@@ -1,6 +1,12 @@
 /**
  * Cloudflare Bypass - Uses got-scraping for TLS fingerprint spoofing
  * Handles Cloudflare Turnstile and other bot protections
+ *
+ * ─── GEB L3 自指注释 ─────────────────────────────────────────────────────
+ * 文件作用: TLS 指纹伪装绕过 Cloudflare
+ * 依赖关系: got-scraping (外部)
+ * 变更同步: 修改绕过策略时更新 docs/CLOUDFLARE_BYPASS.md 和 src/_dir.md
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 // Use dynamic import for ESM module compatibility
